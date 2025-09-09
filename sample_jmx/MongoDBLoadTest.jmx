@@ -1,0 +1,1775 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="MongoDBLoadTest">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="ST">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="pre_processing" enabled="true">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="script">import com.mongodb.ConnectionString
+import com.mongodb.MongoClientSettings
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.connection.ConnectionPoolSettings
+import org.bson.Document
+import groovy.json.JsonSlurper
+import org.apache.jmeter.services.FileServer
+import java.util.concurrent.TimeUnit
+
+def baseDir = FileServer.getFileServer().getBaseDir()
+def configPath = props.get(&quot;configPath&quot;)
+
+if (configPath == null) {
+	log.warn(&quot;Found config path null&quot;)
+	configPath = &quot;config.json&quot;
+}
+
+log.info(&quot;Base directory &quot; + baseDir)
+log.info(&quot;Given config path &quot; + configPath)
+
+def configFilePath = new File(baseDir, configPath)
+
+if (!configFilePath.exists()) {
+    log.error(&quot;JSON config file not found: &quot; + jsonFilePath.getAbsolutePath())
+    return
+}
+
+def jsonSlurper = new JsonSlurper()
+def configMap = jsonSlurper.parse(configFilePath)
+
+props.put(&quot;DAY_OFFSET&quot;, configMap.globalDayOffset.toString())
+
+props.put(&quot;VT1_NUM_THREADS&quot;, configMap.pointAddedInsertion.numThreads.toString())
+props.put(&quot;VT1_RAMP_UP_TIME&quot;, configMap.pointAddedInsertion.rampUpTimeInSec.toString())
+props.put(&quot;VT1_DURATION&quot;, configMap.pointAddedInsertion.durationInSec.toString())
+props.put(&quot;VT1_DELAY&quot;, configMap.pointAddedInsertion.threadDelayInMsec.toString())
+
+props.put(&quot;VT2_NUM_THREADS&quot;, configMap.filterByTimeRangeAndVehicleId.numThreads.toString())
+props.put(&quot;VT2_RAMP_UP_TIME&quot;, configMap.filterByTimeRangeAndVehicleId.rampUpTimeInSec.toString())
+props.put(&quot;VT2_DURATION&quot;, configMap.filterByTimeRangeAndVehicleId.durationInSec.toString())
+props.put(&quot;VT2_DELAY&quot;, configMap.filterByTimeRangeAndVehicleId.threadDelayInMsec.toString())
+props.put(&quot;VT2_MAX_TIME_RANGE&quot;, configMap.filterByTimeRangeAndVehicleId.durationMaxRangeInMinutes.toString())
+	props.put(&quot;VT2_MAX_TIME_OFFSET&quot;, configMap.filterByTimeRangeAndVehicleId.offsetMaxRangeInMinutes.toString())
+props.put(&quot;VT2_LIMIT&quot;, configMap.filterByTimeRangeAndVehicleId.limitOfDocs.toString())
+
+props.put(&quot;VT6_NUM_THREADS&quot;, configMap.filterByTimeRangeAndRouteId.numThreads.toString())
+props.put(&quot;VT6_RAMP_UP_TIME&quot;, configMap.filterByTimeRangeAndRouteId.rampUpTimeInSec.toString())
+props.put(&quot;VT6_DURATION&quot;, configMap.filterByTimeRangeAndRouteId.durationInSec.toString())
+props.put(&quot;VT6_DELAY&quot;, configMap.filterByTimeRangeAndRouteId.threadDelayInMsec.toString())
+props.put(&quot;VT6_MAX_TIME_RANGE&quot;, configMap.filterByTimeRangeAndRouteId.durationMaxRangeInMinutes.toString())
+props.put(&quot;VT6_MAX_TIME_OFFSET&quot;, configMap.filterByTimeRangeAndRouteId.offsetMaxRangeInMinutes.toString())
+props.put(&quot;VT6_LIMIT&quot;, configMap.filterByTimeRangeAndRouteId.limitOfDocs.toString())
+
+props.put(&quot;VT7_NUM_THREADS&quot;, configMap.filterByTimeRangeRouteVehicleAndCity.numThreads.toString())
+props.put(&quot;VT7_RAMP_UP_TIME&quot;, configMap.filterByTimeRangeRouteVehicleAndCity.rampUpTimeInSec.toString())
+props.put(&quot;VT7_DURATION&quot;, configMap.filterByTimeRangeRouteVehicleAndCity.durationInSec.toString())
+props.put(&quot;VT7_DELAY&quot;, configMap.filterByTimeRangeRouteVehicleAndCity.threadDelayInMsec.toString())
+props.put(&quot;VT7_MAX_TIME_RANGE&quot;, configMap.filterByTimeRangeRouteVehicleAndCity.durationMaxRangeInMinutes.toString())
+props.put(&quot;VT7_MAX_TIME_OFFSET&quot;, configMap.filterByTimeRangeRouteVehicleAndCity.offsetMaxRangeInMinutes.toString())
+props.put(&quot;VT7_LIMIT&quot;, configMap.filterByTimeRangeRouteVehicleAndCity.limitOfDocs.toString())
+
+props.put(&quot;VT8_NUM_THREADS&quot;, configMap.filterByTimeRangeAgencyAndCity.numThreads.toString())
+props.put(&quot;VT8_RAMP_UP_TIME&quot;, configMap.filterByTimeRangeAgencyAndCity.rampUpTimeInSec.toString())
+props.put(&quot;VT8_DURATION&quot;, configMap.filterByTimeRangeAgencyAndCity.durationInSec.toString())
+props.put(&quot;VT8_DELAY&quot;, configMap.filterByTimeRangeAgencyAndCity.threadDelayInMsec.toString())
+props.put(&quot;VT8_MAX_TIME_RANGE&quot;, configMap.filterByTimeRangeAgencyAndCity.durationMaxRangeInMinutes.toString())
+props.put(&quot;VT8_MAX_TIME_OFFSET&quot;, configMap.filterByTimeRangeAgencyAndCity.offsetMaxRangeInMinutes.toString())
+props.put(&quot;VT8_LIMIT&quot;, configMap.filterByTimeRangeAgencyAndCity.limitOfDocs.toString())
+
+props.put(&quot;VT3_NUM_THREADS&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.numThreads.toString())
+props.put(&quot;VT3_RAMP_UP_TIME&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.rampUpTimeInSec.toString())
+props.put(&quot;VT3_DURATION&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.durationInSec.toString())
+props.put(&quot;VT3_DELAY&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.threadDelayInMsec.toString())
+props.put(&quot;VT3_MAX_RADIUS&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.radiusMaxRangeInMeters.toString())
+props.put(&quot;VT3_MIN_RADIUS&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.radiusMinRangeInMeters.toString())
+props.put(&quot;VT3_MAX_TIME_RANGE&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.durationMaxRangeInMinutes.toString())
+props.put(&quot;VT3_MAX_TIME_OFFSET&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.offsetMaxRangeInMinutes.toString())
+props.put(&quot;VT3_LIMIT&quot;, configMap.geoRadiusWithTimeRangeLatestPoint.limitOfDocs.toString())
+
+props.put(&quot;VT4_NUM_THREADS&quot;, configMap.geoRadiusWithTimeRange.numThreads.toString())
+props.put(&quot;VT4_RAMP_UP_TIME&quot;, configMap.geoRadiusWithTimeRange.rampUpTimeInSec.toString())
+props.put(&quot;VT4_DURATION&quot;, configMap.geoRadiusWithTimeRange.durationInSec.toString())
+props.put(&quot;VT4_DELAY&quot;, configMap.geoRadiusWithTimeRange.threadDelayInMsec.toString())
+props.put(&quot;VT4_MAX_RADIUS&quot;, configMap.geoRadiusWithTimeRange.radiusMaxRangeInMeters.toString())
+props.put(&quot;VT4_MIN_RADIUS&quot;, configMap.geoRadiusWithTimeRange.radiusMinRangeInMeters.toString())
+props.put(&quot;VT4_MAX_TIME_RANGE&quot;, configMap.geoRadiusWithTimeRange.durationMaxRangeInMinutes.toString())
+props.put(&quot;VT4_MAX_TIME_OFFSET&quot;, configMap.geoRadiusWithTimeRange.offsetMaxRangeInMinutes.toString())
+props.put(&quot;VT4_LIMIT&quot;, configMap.geoRadiusWithTimeRange.limitOfDocs.toString())
+
+props.put(&quot;VT5_NUM_THREADS&quot;, configMap.timeRangeCityAndPercentile.numThreads.toString())
+props.put(&quot;VT5_RAMP_UP_TIME&quot;, configMap.timeRangeCityAndPercentile.rampUpTimeInSec.toString())
+props.put(&quot;VT5_DURATION&quot;, configMap.timeRangeCityAndPercentile.durationInSec.toString())
+props.put(&quot;VT5_DELAY&quot;, configMap.timeRangeCityAndPercentile.threadDelayInMsec.toString())
+props.put(&quot;VT5_MIN_PT&quot;, configMap.timeRangeCityAndPercentile.minPercentile.toString())
+props.put(&quot;VT5_MAX_PT&quot;, configMap.timeRangeCityAndPercentile.maxPercentile.toString())
+props.put(&quot;VT5_MAX_TIME_RANGE&quot;, configMap.timeRangeCityAndPercentile.durationMaxRangeInMinutes.toString())
+props.put(&quot;VT5_MAX_TIME_OFFSET&quot;, configMap.timeRangeCityAndPercentile.offsetMaxRangeInMinutes.toString())
+
+props.put(&quot;VT9_NUM_THREADS&quot;, configMap.timeRangeCityCountAndMean.numThreads.toString())
+props.put(&quot;VT9_RAMP_UP_TIME&quot;, configMap.timeRangeCityCountAndMean.rampUpTimeInSec.toString())
+props.put(&quot;VT9_DURATION&quot;, configMap.timeRangeCityCountAndMean.durationInSec.toString())
+props.put(&quot;VT9_DELAY&quot;, configMap.timeRangeCityCountAndMean.threadDelayInMsec.toString())
+props.put(&quot;VT9_MAX_TIME_RANGE&quot;, configMap.timeRangeCityCountAndMean.durationMaxRangeInMinutes.toString())
+props.put(&quot;VT9_MAX_TIME_OFFSET&quot;, configMap.timeRangeCityCountAndMean.offsetMaxRangeInMinutes.toString())
+
+props.put(&quot;VT10_NUM_THREADS&quot;, configMap.timeRangeHourCityAndPercentile.numThreads.toString())
+props.put(&quot;VT10_RAMP_UP_TIME&quot;, configMap.timeRangeHourCityAndPercentile.rampUpTimeInSec.toString())
+props.put(&quot;VT10_DURATION&quot;, configMap.timeRangeHourCityAndPercentile.durationInSec.toString())
+props.put(&quot;VT10_DELAY&quot;, configMap.timeRangeHourCityAndPercentile.threadDelayInMsec.toString())
+props.put(&quot;VT10_MIN_PT&quot;, configMap.timeRangeHourCityAndPercentile.minPercentile.toString())
+props.put(&quot;VT10_MAX_PT&quot;, configMap.timeRangeHourCityAndPercentile.maxPercentile.toString())
+props.put(&quot;VT10_MAX_TIME_OFFSET&quot;, configMap.timeRangeHourCityAndPercentile.fixedOffsetInMinutes.toString())
+props.put(&quot;VT10_FIXED_RANGE&quot;, configMap.timeRangeHourCityAndPercentile.fixedRangeInMinutes.toString())
+props.put(&quot;VT10_DAY_START_HOUR&quot;, configMap.timeRangeHourCityAndPercentile.dayStartHourUtc.toString())
+props.put(&quot;VT10_DAY_END_HOUR&quot;, configMap.timeRangeHourCityAndPercentile.dayEndHourUtc.toString())
+
+props.put(&quot;VT11_NUM_THREADS&quot;, configMap.ngeoRadiusWithTimeRange.numThreads.toString())
+props.put(&quot;VT11_RAMP_UP_TIME&quot;, configMap.ngeoRadiusWithTimeRange.rampUpTimeInSec.toString())
+props.put(&quot;VT11_DURATION&quot;, configMap.ngeoRadiusWithTimeRange.durationInSec.toString())
+props.put(&quot;VT11_DELAY&quot;, configMap.ngeoRadiusWithTimeRange.threadDelayInMsec.toString())
+props.put(&quot;VT11_MAX_RADIUS&quot;, configMap.ngeoRadiusWithTimeRange.radiusMaxRangeInMeters.toString())
+props.put(&quot;VT11_MIN_RADIUS&quot;, configMap.ngeoRadiusWithTimeRange.radiusMinRangeInMeters.toString())
+props.put(&quot;VT11_MAX_TIME_RANGE&quot;, configMap.ngeoRadiusWithTimeRange.durationMaxRangeInMinutes.toString())
+props.put(&quot;VT11_MAX_TIME_OFFSET&quot;, configMap.ngeoRadiusWithTimeRange.offsetMaxRangeInMinutes.toString())
+props.put(&quot;VT11_LIMIT&quot;, configMap.ngeoRadiusWithTimeRange.limitOfDocs.toString())
+
+try {
+    String mongoUri = configMap.mongoDb.baseUrl;
+    ConnectionPoolSettings connectionPoolSettings = ConnectionPoolSettings.builder()
+            .maxSize(configMap.mongoDb.connectionPoolMaxSize) // Maximum connections in the pool
+            .minSize(configMap.mongoDb.connectionPoolMinSize)  // Minimum connections kept alive
+            .maxWaitTime(configMap.mongoDb.connectionPoolMaxWaitTimeInSec, TimeUnit.SECONDS) // Max time a thread can wait for a connection
+            .maxConnectionIdleTime(configMap.mongoDb.connectionPoolMaxIdleTimeInMin, TimeUnit.MINUTES) // Max time an idle connection stays in pool
+            .build();
+    MongoClientSettings settings = MongoClientSettings.builder()
+            .applyConnectionString(new ConnectionString(mongoUri))
+            .applyToConnectionPoolSettings(builder -&gt; builder.applySettings(connectionPoolSettings))
+            .build();
+    MongoClient mongoClient = MongoClients.create(settings);
+    props.put(&quot;mongoClient&quot;, mongoClient)
+    MongoCollection&lt;Document&gt; collection = mongoClient.getDatabase(configMap.mongoDb.database).getCollection(configMap.mongoDb.collection);
+    MongoCollection&lt;Document&gt; ncollection = mongoClient.getDatabase(configMap.mongoDb.ndatabase).getCollection(configMap.mongoDb.ncollection);
+    props.put(&quot;mongoConnection&quot;, collection)
+    props.put(&quot;mongoNConnection&quot;, ncollection)
+    log.info(&quot;MongoDB connection initialized successfully: &quot; + collection);
+    log.info(&quot;MongoDB connection initialized successfully: &quot; + ncollection);
+    SampleResult.setSuccessful(true)
+    SampleResult.setResponseMessage(&quot;Ok&quot;)
+} catch (Exception e) {
+    log.error(&quot;Error initializing MongoClient: &quot; + e.getMessage(), e);
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseMessage(&quot;Failed to initialize MongoClient: &quot; + e.getMessage());
+}
+
+if (!props.get(&quot;vehicleListLoaded&quot;)) {
+    def filePath = &quot;/&quot; + configMap.seedFile
+    def jsonText = new File(baseDir, filePath).text
+    def vehicleList = jsonSlurper.parseText(jsonText)
+    props.put(&quot;vehicleList&quot;, vehicleList)
+    props.put(&quot;vehicleListLoaded&quot;, &quot;true&quot;)
+    log.info(&quot;Loaded vehicle list with ${vehicleList.size()} vehicles.&quot;)
+}
+</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT1" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT1_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT1_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT1_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="point_added_insertion" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import org.bson.Document
+import java.util.ArrayList
+import java.util.Date
+import groovy.json.JsonSlurper
+import java.time.temporal.ChronoUnit
+
+// --- Configuration ---
+int batchSize = (props.get(&quot;batchSize&quot;) ?: &quot;1000&quot;).toInteger()
+// --- End Configuration ---
+
+if (vars.get(&quot;vehicleAssigned&quot;) == null) {
+    def threadNum = ctx.getThreadNum()
+    def vehicles = props.get(&quot;vehicleList&quot;)
+    def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+    vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+    vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+def collection = props.get(&quot;mongoConnection&quot;)
+def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+def baseLon = vehicleDoc.location.coordinates[0]
+def baseLat = vehicleDoc.location.coordinates[1]
+def baseTripDistance = vehicleDoc.tripDistance
+
+def documents = new ArrayList&lt;Document&gt;()
+long batchStart = System.currentTimeMillis()
+long batchEnd = batchStart + 5 // 5 ms window
+int i = 0
+try {
+    while (System.currentTimeMillis() &lt; batchEnd &amp;&amp; i &lt; batchSize) {
+        def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) ?: &quot;0&quot;).toInteger(), ChronoUnit.DAYS))
+        def lon = baseLon + (Math.random() - 0.5) * 0.0001
+        def lat = baseLat + (Math.random() - 0.5) * 0.0001
+        def currentTripDistance = baseTripDistance + i + 1
+        def vehicleMongoDoc = new Document(&quot;pointTimeStamp&quot;, now)
+            .append(&quot;systemTimeStamp&quot;, now)
+            .append(&quot;logTime&quot;, now)
+            .append(&quot;streamId&quot;, vehicleDoc.streamId)
+            .append(&quot;metaData&quot;, new Document(&quot;agency&quot;, vehicleDoc.metaData.agency)
+                .append(&quot;city&quot;, vehicleDoc.metaData.city)
+                .append(&quot;operatorId&quot;, vehicleDoc.metaData.operatorId)
+                .append(&quot;routeId&quot;, vehicleDoc.metaData.routeId)
+                .append(&quot;userId&quot;, vehicleDoc.metaData.userId))
+            .append(&quot;location&quot;, new Document(&quot;type&quot;, &quot;Point&quot;)
+                .append(&quot;coordinates&quot;, [lon, lat]))
+            .append(&quot;nMappedSegments&quot;, vehicleDoc.nMappedSegments)
+            .append(&quot;halted&quot;, vehicleDoc.haltTime)
+            .append(&quot;checksum&quot;, vehicleDoc.checksum)
+            .append(&quot;pointSpeed&quot;, vehicleDoc.speed)
+            .append(&quot;accuracy&quot;, vehicleDoc.accuracy)
+            .append(&quot;stopJump&quot;, vehicleDoc.stopJump)
+            .append(&quot;previousStopId&quot;, vehicleDoc.previousStopId)
+            .append(&quot;tripDistance&quot;, currentTripDistance)
+            .append(&quot;bearing&quot;, vehicleDoc.bearing)
+            .append(&quot;haltTime&quot;, vehicleDoc.haltTime)
+            .append(&quot;processingTime&quot;, vehicleDoc.processingTime)
+        documents.add(vehicleMongoDoc)
+        i++
+    }
+    long startTime = System.currentTimeMillis()
+    collection.insertMany(documents)
+    long endTime = System.currentTimeMillis()
+    SampleResult.setSuccessful(true)
+    SampleResult.setSampleLabel(&quot;MongoDB Per-5ms Batch Insert (Size: &quot; + documents.size() + &quot;)&quot;)
+    SampleResult.setResponseData(&quot;Inserted &quot; + documents.size() + &quot; documents in 5 ms.&quot;, &quot;UTF-8&quot;)
+    SampleResult.setLatency(endTime - startTime)
+    SampleResult.setSampleCount(documents.size())
+} catch (Exception e) {
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseCode(&quot;500&quot;)
+    SampleResult.setResponseMessage(&quot;Batch insert failed: ${e.message}&quot;)
+    log.error(&quot;MongoDB Per-5ms Batch Insert Error&quot;, e)
+}
+vehicleDoc.tripDistance = baseTripDistance + i
+vars.putObject(&quot;updatedVehicleDoc&quot;, vehicleDoc)
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT1_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT2" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT2_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT2_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT2_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="timerange_userId" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Aggregates
+import com.mongodb.client.model.Sorts
+import com.mongodb.client.model.Filters
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import java.time.Instant
+import java.util.concurrent.TimeUnit
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+	
+	def maxRangeMinutes = (props.get(&quot;VT2_MAX_TIME_RANGE&quot;) as Integer)
+	def maxOffsetMinutes = (props.get(&quot;VT2_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    	def targetUserId = vehicleDoc.metaData.userId
+	def limitDocs = (props.get(&quot;VT2_LIMIT&quot;) as Integer)
+
+	def matchStage = Aggregates.match(
+		Filters.and(
+		   Filters.eq(&quot;metaData.userId&quot;, targetUserId),
+		   Filters.gte(&quot;pointTimeStamp&quot;, startDate),
+		   Filters.lte(&quot;pointTimeStamp&quot;, endDate)
+		)
+	)
+
+	def sortStage = Aggregates.sort(Sorts.descending(&quot;pointTimeStamp&quot;))
+	
+	def limitStage = Aggregates.limit(limitDocs)
+
+	def pipeline = Arrays.asList(
+		matchStage,
+		sortStage,
+		limitStage
+	)
+	
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT2_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT6" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT6_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT6_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT6_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="timerange_routeId" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Aggregates
+import com.mongodb.client.model.Sorts
+import com.mongodb.client.model.Filters
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import java.time.Instant
+import java.util.concurrent.TimeUnit
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+	
+	def maxRangeMinutes = (props.get(&quot;VT6_MAX_TIME_RANGE&quot;) as Integer)
+	def maxOffsetMinutes = (props.get(&quot;VT6_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    	def targetRouteId = vehicleDoc.metaData.routeId
+	def limitDocs = (props.get(&quot;VT6_LIMIT&quot;) as Integer)
+
+	def matchStage = Aggregates.match(
+		Filters.and(
+		   Filters.eq(&quot;metaData.routeId&quot;, targetRouteId),
+		   Filters.gte(&quot;pointTimeStamp&quot;, startDate),
+		   Filters.lte(&quot;pointTimeStamp&quot;, endDate)
+		)
+	)
+
+	def sortStage = Aggregates.sort(Sorts.descending(&quot;pointTimeStamp&quot;))
+	
+	def limitStage = Aggregates.limit(limitDocs)
+
+	def pipeline = Arrays.asList(
+		matchStage,
+		sortStage,
+		limitStage
+	)
+
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT6_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT8" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT8_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT8_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT8_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="timerange_agency_city" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Aggregates
+import com.mongodb.client.model.Sorts
+import com.mongodb.client.model.Filters
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import java.time.Instant
+import java.util.concurrent.TimeUnit
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+	
+	def maxRangeMinutes = (props.get(&quot;VT8_MAX_TIME_RANGE&quot;) as Integer)
+	def maxOffsetMinutes = (props.get(&quot;VT8_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    	def targetAgency = vehicleDoc.metaData.agency
+    	def targetCity = vehicleDoc.metaData.city
+	def limitDocs = (props.get(&quot;VT8_LIMIT&quot;) as Integer)
+
+	def matchStage = Aggregates.match(
+		Filters.and(
+		   Filters.eq(&quot;metaData.agency&quot;, targetAgency),
+		   Filters.eq(&quot;metaData.city&quot;, targetCity),
+		   Filters.gte(&quot;pointTimeStamp&quot;, startDate),
+		   Filters.lte(&quot;pointTimeStamp&quot;, endDate)
+		)
+	)
+
+	def sortStage = Aggregates.sort(Sorts.descending(&quot;pointTimeStamp&quot;))
+	
+	def limitStage = Aggregates.limit(limitDocs)
+
+	def pipeline = Arrays.asList(
+		matchStage,
+		sortStage,
+		limitStage
+	)
+
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT8_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT7" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT7_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT7_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT7_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="timerange_userId_routeId_city" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Aggregates
+import com.mongodb.client.model.Sorts
+import com.mongodb.client.model.Filters
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import java.time.Instant
+import java.util.concurrent.TimeUnit
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+	
+	def maxRangeMinutes = (props.get(&quot;VT7_MAX_TIME_RANGE&quot;) as Integer)
+	def maxOffsetMinutes = (props.get(&quot;VT7_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    	def targetUserId = vehicleDoc.metaData.userId
+    	def targetRouteId = vehicleDoc.metaData.routeId
+    	def targetCity = vehicleDoc.metaData.city
+	def limitDocs = (props.get(&quot;VT7_LIMIT&quot;) as Integer)
+
+	def matchStage = Aggregates.match(
+		Filters.and(
+		   Filters.eq(&quot;metaData.routeId&quot;, targetRouteId),
+		   Filters.eq(&quot;metaData.userId&quot;, targetUserId),
+		   Filters.eq(&quot;metaData.city&quot;, targetCity),
+		   Filters.gte(&quot;pointTimeStamp&quot;, startDate),
+		   Filters.lte(&quot;pointTimeStamp&quot;, endDate)
+		)
+	)
+
+	def sortStage = Aggregates.sort(Sorts.descending(&quot;pointTimeStamp&quot;))
+	
+	def limitStage = Aggregates.limit(limitDocs)
+
+	def pipeline = Arrays.asList(
+		matchStage,
+		sortStage,
+		limitStage
+	)
+
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT7_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT3" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT3_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT3_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT3_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="georadius_timerange_latestpoint" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Aggregates
+import com.mongodb.client.model.Filters
+import com.mongodb.client.model.Projections
+import com.mongodb.client.model.Sorts
+import com.mongodb.client.model.geojson.Point
+import com.mongodb.client.model.geojson.Position
+import com.mongodb.client.model.Accumulators
+import com.mongodb.client.model.GeoNearOptions
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import org.bson.Document
+import java.util.concurrent.TimeUnit
+import java.util.Arrays
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+
+	def maxRadius = (props.get(&quot;VT3_MAX_RADIUS&quot;) as Integer)
+	def minRadius = (props.get(&quot;VT3_MIN_RADIUS&quot;) as Integer)
+	def randomRadius = minRadius + (int)(Math.random() * (maxRadius - minRadius + 1))
+	def radiusInRadians = randomRadius / 6378137.0
+
+	def maxRangeMinutes = (props.get(&quot;VT3_MAX_TIME_RANGE&quot;) as Integer)
+	def maxOffsetMinutes = (props.get(&quot;VT3_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    	def targetUserId = vehicleDoc.metaData.userId
+	def limitDocs = (props.get(&quot;VT3_LIMIT&quot;) as Integer)
+
+    	def coordinates = new Point(new Position(vehicleDoc.location.coordinates[0], vehicleDoc.location.coordinates[1]))
+
+	def geoNearStage = new Document(&apos;$geoNear&apos;, new Document()
+		.append(&quot;near&quot;, new Document(&quot;type&quot;, &quot;Point&quot;)
+			.append(&quot;coordinates&quot;, Arrays.asList(vehicleDoc.location.coordinates[0], vehicleDoc.location.coordinates[1])))
+		.append(&quot;distanceField&quot;, &quot;distance_from_point&quot;)
+		.append(&quot;maxDistance&quot;, (randomRadius as Double))
+		.append(&quot;spherical&quot;, true)
+		.append(&quot;key&quot;, &quot;location&quot;)
+	)
+
+	
+	def matchStage = Aggregates.match(
+	    Filters.and(
+	        Filters.gte(&quot;pointTimeStamp&quot;, startDate),
+	        Filters.lte(&quot;pointTimeStamp&quot;, endDate)
+	    )
+	)
+	
+	def sortStage = Aggregates.sort(
+	    Sorts.orderBy(
+	        Sorts.ascending(&quot;metaData.userId&quot;),
+	        Sorts.descending(&quot;pointTimeStamp&quot;)
+	    )
+	)
+	
+	def groupStage = Aggregates.group(
+		&apos;$metaData.userId&apos;,
+		Accumulators.first(&quot;latest_doc&quot;, &apos;$$ROOT&apos;)
+	)
+	
+	def projectStage = Aggregates.project(
+	    Projections.fields(
+	        Projections.excludeId(),
+	        Projections.computed(&quot;userId&quot;, &apos;$_id&apos;),
+	        Projections.computed(&quot;point&quot;, new Document(
+	            &quot;location&quot;, &apos;$latest_doc.location&apos;
+	        ).append(
+	            &quot;timeStamp&quot;, &apos;$latest_doc.pointTimeStamp&apos;
+	        ))
+	    )
+	)
+
+	def limitStage = Aggregates.limit(limitDocs)
+
+	def pipeline = Arrays.asList(
+	    geoNearStage,
+	    matchStage,
+	    sortStage,
+	    groupStage,
+	    projectStage,
+	    limitStage
+	)
+	
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+          <stringProp name="TestPlan.comments">vehicleDoc.location.coordinates[0]</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT3_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT4" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT4_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT4_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT4_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="georadius_timerange" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Aggregates
+import com.mongodb.client.model.Filters
+import com.mongodb.client.model.Projections
+import com.mongodb.client.model.Sorts
+import com.mongodb.client.model.geojson.Point
+import com.mongodb.client.model.geojson.Position
+import com.mongodb.client.model.Accumulators
+import com.mongodb.client.model.GeoNearOptions
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import org.bson.Document
+import java.util.concurrent.TimeUnit
+import java.util.Arrays
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+
+	def maxRadius = (props.get(&quot;VT4_MAX_RADIUS&quot;) as Integer)
+	def minRadius = (props.get(&quot;VT4_MIN_RADIUS&quot;) as Integer)
+	def randomRadius = minRadius + (int)(Math.random() * (maxRadius - minRadius + 1))
+	def radiusInRadians = randomRadius / 6378137.0
+
+	def maxRangeMinutes = (props.get(&quot;VT4_MAX_TIME_RANGE&quot;) as Integer)
+	def maxOffsetMinutes = (props.get(&quot;VT4_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    	def targetUserId = vehicleDoc.metaData.userId
+	def limitDocs = (props.get(&quot;VT4_LIMIT&quot;) as Integer)
+
+    	def coordinates = new Point(new Position(vehicleDoc.location.coordinates[0], vehicleDoc.location.coordinates[1]))
+
+	def geoNearStage = new Document(&apos;$geoNear&apos;, new Document()
+		.append(&quot;near&quot;, new Document(&quot;type&quot;, &quot;Point&quot;)
+			.append(&quot;coordinates&quot;, Arrays.asList(vehicleDoc.location.coordinates[0], vehicleDoc.location.coordinates[1])))
+		.append(&quot;distanceField&quot;, &quot;distance_from_point&quot;)
+		.append(&quot;maxDistance&quot;, (randomRadius as Double))
+		.append(&quot;spherical&quot;, true)
+		.append(&quot;key&quot;, &quot;location&quot;)
+	)
+
+	
+	def matchStage = Aggregates.match(
+	    Filters.and(
+	        Filters.gte(&quot;pointTimeStamp&quot;, startDate),
+	        Filters.lte(&quot;pointTimeStamp&quot;, endDate)
+	    )
+	)
+	
+	def sortStage = Aggregates.sort(
+	    Sorts.orderBy(
+	        Sorts.descending(&quot;pointTimeStamp&quot;)
+	    )
+	)
+
+	def limitStage = Aggregates.limit(limitDocs)
+
+	def pipeline = Arrays.asList(
+	    geoNearStage,
+	    matchStage,
+	    sortStage,
+	    limitStage
+	)
+	
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+          <stringProp name="TestPlan.comments">vehicleDoc.location.coordinates[0]</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT4_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT5" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT5_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT5_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT5_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="timerange_city_percentile" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import org.bson.Document
+import java.util.concurrent.TimeUnit
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+
+	def maxRangeMinutes = (props.get(&quot;VT5_MAX_TIME_RANGE&quot;) as Integer)
+	def maxOffsetMinutes = (props.get(&quot;VT5_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    	def targetCity = vehicleDoc.metaData.city
+
+    	def minPt = (props.get(&quot;VT5_MIN_PT&quot;) as Integer)
+	def maxPt = (props.get(&quot;VT5_MAX_PT&quot;) as Integer)
+
+	int randomPercentile = new Random().nextInt((maxPt - minPt) + 1) + minPt
+	def decimalValue = randomPercentile / 100.0
+
+    	def pipeline = [
+	    new Document(&apos;$match&apos;, new Document(&quot;metaData.city&quot;, targetCity)
+	        .append(&quot;pointTimeStamp&quot;, new Document(&apos;$gte&apos;, startDate).append(&apos;$lte&apos;, endDate))
+	    ),
+	
+	    new Document(&apos;$group&apos;, new Document(&quot;_id&quot;, null)
+	        .append(&quot;median_trip_distance_arr&quot;,
+	            new Document(&apos;$percentile&apos;,
+	                new Document(&quot;input&quot;, &apos;$tripDistance&apos;)
+	                    .append(&quot;p&quot;, [decimalValue])
+	                    .append(&quot;method&quot;, &quot;approximate&quot;)
+	            )
+	        )
+	    ),
+	
+	    new Document(&apos;$project&apos;, new Document(&quot;_id&quot;, 0)
+	        .append(&quot;median_trip_distance&quot;, new Document(&apos;$arrayElemAt&apos;, [&apos;$median_trip_distance_arr&apos;, 0]))
+	    )
+	]
+
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT5_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT9" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT9_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT9_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT9_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="timerange_city_stats" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import org.bson.Document
+import java.util.concurrent.TimeUnit
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+
+	def maxRangeMinutes = (props.get(&quot;VT9_MAX_TIME_RANGE&quot;) as Integer)
+	def maxOffsetMinutes = (props.get(&quot;VT9_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    	def targetCity = vehicleDoc.metaData.city
+
+    	def pipeline = [
+	    new Document(&apos;$match&apos;, new Document(&apos;metaData.city&apos;, targetCity)
+	        .append(&apos;pointTimeStamp&apos;, new Document(&apos;$gte&apos;, startDate).append(&apos;$lte&apos;, endDate))
+	    ),
+	
+	    new Document(&apos;$facet&apos;, new Document()
+	        .append(&apos;countX&apos;, [
+	            new Document(&apos;$count&apos;, &apos;total_documents_in_last_30_mins&apos;)
+	        ])
+	        .append(&apos;medianX&apos;, [
+	            new Document(&apos;$group&apos;, new Document(&apos;_id&apos;, null)
+	                .append(&apos;median_trip_distance_arr&apos;, new Document(&apos;$percentile&apos;, new Document()
+	                    .append(&apos;input&apos;, &apos;$tripDistance&apos;)
+	                    .append(&apos;p&apos;, [0.5])
+	                    .append(&apos;method&apos;, &apos;approximate&apos;)
+	                ))
+	            ),
+	            new Document(&apos;$project&apos;, new Document(&apos;_id&apos;, 0)
+	                .append(&apos;median_trip_distance&apos;, new Document(&apos;$arrayElemAt&apos;, [&apos;$median_trip_distance_arr&apos;, 0]))
+	            )
+	        ])
+	        .append(&apos;meanX&apos;, [
+	            new Document(&apos;$group&apos;, new Document(&apos;_id&apos;, null)
+	                .append(&apos;average_trip_distance&apos;, new Document(&apos;$avg&apos;, &apos;$tripDistance&apos;))
+	            ),
+	            new Document(&apos;$project&apos;, new Document(&apos;_id&apos;, 0)
+	                .append(&apos;average_trip_distance&apos;, 1)
+	            )
+	        ])
+	    )
+	]
+
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT9_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT10" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(VT10_NUM_THREADS)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(VT10_RAMP_UP_TIME)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(VT10_DURATION)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="timerange_hour_city_user_percentile" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import org.bson.Document
+import java.util.concurrent.TimeUnit
+import java.time.LocalTime
+import java.util.concurrent.ThreadLocalRandom
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+	def threadNum = ctx.getThreadNum()
+	def vehicles = props.get(&quot;vehicleList&quot;)
+	
+	if (threadNum &gt;= vehicles.size()) {
+		log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+		SampleResult.setIgnore()
+		return
+	}
+	
+	def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+	vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+	vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+	def collection = props.get(&quot;mongoConnection&quot;)
+	def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+
+	def maxRangeMinutes = 0
+	def maxOffsetMinutes = (props.get(&quot;VT10_MAX_TIME_OFFSET&quot;) as Integer)
+	def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+	def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+//	def randomOffset = 1 + (int)(Math.random() * maxOffsetMinutes)
+	def randomOffset = maxOffsetMinutes
+	def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+	def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+
+
+	int durationMinutes = (props.get(&quot;VT10_FIXED_RANGE&quot;) as Integer)
+	int dayStartHour = (props.get(&quot;VT10_DAY_START_HOUR&quot;) as Integer)
+	int dayEndHour = (props.get(&quot;VT10_DAY_END_HOUR&quot;) as Integer)
+	LocalTime dayStart = LocalTime.of(dayStartHour, 0)
+	LocalTime dayEnd = LocalTime.of(dayEndHour, 0)
+	LocalTime latestStart = dayEnd.minusMinutes(durationMinutes)
+	long startSeconds = dayStart.toSecondOfDay()
+	long endSeconds = latestStart.toSecondOfDay()
+	long randomStartSeconds = ThreadLocalRandom.current().nextLong(startSeconds, endSeconds + 1)
+	LocalTime startTimeTemp = LocalTime.ofSecondOfDay(randomStartSeconds)
+	LocalTime endTimeTemp = startTimeTemp.plusMinutes(durationMinutes)
+	int startHour = startTimeTemp.getHour()
+	int startMinute = startTimeTemp.getMinute()
+	int endHour = endTimeTemp.getHour()
+	int endMinute = endTimeTemp.getMinute()
+	
+	
+    	def targetUserId = vehicleDoc.metaData.userId
+    	
+    	def minPt = (props.get(&quot;VT10_MIN_PT&quot;) as Integer)
+	def maxPt = (props.get(&quot;VT10_MAX_PT&quot;) as Integer)
+	int randomPercentile = new Random().nextInt((maxPt - minPt) + 1) + minPt
+	def decimalValue = randomPercentile / 100.0
+
+    	// Create pipeline
+	def pipeline = [
+	    // Stage 1: $match with $expr and time filtering
+	    new Document(&apos;$match&apos;, new Document()
+	        .append(&apos;metaData.userId&apos;, targetUserId)
+	        .append(&apos;pointTimeStamp&apos;, new Document(&apos;$gte&apos;, startDate).append(&apos;$lte&apos;, endDate))
+	        .append(&apos;$expr&apos;, new Document(&apos;$and&apos;, [
+	            // Hour &gt;= 9
+	            new Document(&apos;$gte&apos;, [
+	                new Document(&apos;$hour&apos;, new Document(&apos;date&apos;, &apos;$pointTimeStamp&apos;).append(&apos;timezone&apos;, &apos;UTC&apos;)),
+	                startHour
+	            ]),
+	            // Hour &lt;= 10
+	            new Document(&apos;$lte&apos;, [
+	                new Document(&apos;$hour&apos;, new Document(&apos;date&apos;, &apos;$pointTimeStamp&apos;).append(&apos;timezone&apos;, &apos;UTC&apos;)),
+	                endHour
+	            ]),
+	            // (Hour &gt; 9) OR (Minute &gt;= 23)
+	            new Document(&apos;$or&apos;, [
+	                new Document(&apos;$gt&apos;, [
+	                    new Document(&apos;$hour&apos;, new Document(&apos;date&apos;, &apos;$pointTimeStamp&apos;).append(&apos;timezone&apos;, &apos;UTC&apos;)),
+	                    startHour
+	                ]),
+	                new Document(&apos;$gte&apos;, [
+	                    new Document(&apos;$minute&apos;, new Document(&apos;date&apos;, &apos;$pointTimeStamp&apos;).append(&apos;timezone&apos;, &apos;UTC&apos;)),
+	                    startMinute
+	                ])
+	            ]),
+	            // (Hour &lt; 10) OR (Minute &lt;= 15)
+	            new Document(&apos;$or&apos;, [
+	                new Document(&apos;$lt&apos;, [
+	                    new Document(&apos;$hour&apos;, new Document(&apos;date&apos;, &apos;$pointTimeStamp&apos;).append(&apos;timezone&apos;, &apos;UTC&apos;)),
+	                    endHour
+	                ]),
+	                new Document(&apos;$lte&apos;, [
+	                    new Document(&apos;$minute&apos;, new Document(&apos;date&apos;, &apos;$pointTimeStamp&apos;).append(&apos;timezone&apos;, &apos;UTC&apos;)),
+	                    endMinute
+	                ])
+	            ])
+	        ]))
+	    ),
+	
+	    // Stage 2: $group by previousStopId and routeId
+	    new Document(&apos;$group&apos;, new Document(&apos;_id&apos;, new Document()
+	        .append(&apos;prevStop&apos;, &apos;$previousStopId&apos;)
+	        .append(&apos;routeId&apos;, &apos;$metaData.routeId&apos;)
+	    ).append(&apos;p40_tripDistance&apos;, new Document(&apos;$percentile&apos;, new Document()
+	        .append(&apos;input&apos;, &apos;$tripDistance&apos;)
+	        .append(&apos;p&apos;, [decimalValue])
+	        .append(&apos;method&apos;, &apos;approximate&apos;)
+	    ))),
+	
+	    // Stage 3: $project result
+	    new Document(&apos;$project&apos;, new Document(&apos;_id&apos;, 0)
+	        .append(&apos;previousStopId&apos;, &apos;$_id.prevStop&apos;)
+	        .append(&apos;routeId&apos;, &apos;$_id.routeId&apos;)
+	        .append(&apos;fortiethPercentileTripDistance&apos;, new Document(&apos;$arrayElemAt&apos;, [&apos;$p40_tripDistance&apos;, 0]))
+	    )
+	]
+
+	def count = 0
+	def responseBytes = 0
+
+	long startTime = System.currentTimeMillis()
+	MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+	while(results.hasNext()) {
+	     RawBsonDocument rawDoc = results.next()
+    		count++
+    		responseBytes += rawDoc.size()
+	}
+	long endTime = System.currentTimeMillis()
+
+	SampleResult.setStartTime(startTime)
+	SampleResult.setEndTime(endTime)
+
+	long latencyMillis = endTime - startTime
+
+	log.info(&quot;Count ${count}, Latency ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+	SampleResult.setSuccessful(true)
+	SampleResult.setLatency(latencyMillis)
+	SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+	log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+	SampleResult.setSuccessful(false)
+	SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}
+
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT10_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <com.example.jmeter.plugin.CustomThreadGroup guiclass="com.example.jmeter.plugin.CustomThreadGroupGui" testclass="com.example.jmeter.plugin.CustomThreadGroup" testname="VT11" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </com.example.jmeter.plugin.CustomThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="georadius_timerange_query_normal_collection" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonSlurper
+import java.text.SimpleDateFormat
+import org.bson.Document
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import com.mongodb.client.model.Aggregates
+import com.mongodb.client.model.Filters
+import com.mongodb.client.model.Projections
+import com.mongodb.client.model.Sorts
+import com.mongodb.client.model.geojson.Point
+import com.mongodb.client.model.geojson.Position
+import com.mongodb.client.model.Accumulators
+import com.mongodb.client.model.GeoNearOptions
+import com.mongodb.client.MongoCursor;
+import org.bson.RawBsonDocument
+import org.bson.Document
+import java.util.concurrent.TimeUnit
+import java.util.Arrays
+import java.util.Date
+import java.util.Calendar
+import java.util.TimeZone
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+// 1. Assign a unique vehicle to this JMeter thread if not already done
+if (!vars.get(&quot;vehicleAssigned&quot;)) {
+    def threadNum = ctx.getThreadNum()
+    def vehicles = props.get(&quot;vehicleList&quot;)
+    
+    if (threadNum &gt;= vehicles.size()) {
+        log.warn(&quot;Thread ${threadNum} has no vehicle to simulate.&quot;)
+        SampleResult.setIgnore()
+        return
+    }
+    
+    def vehicle = new JsonSlurper().parseText(groovy.json.JsonOutput.toJson(vehicles[threadNum]))
+    vars.putObject(&quot;updatedVehicleDoc&quot;, vehicle)
+    vars.put(&quot;vehicleAssigned&quot;, &quot;true&quot;)
+}
+
+try {
+    // 2. Setup Query Parameters
+    def collection = props.get(&quot;mongoNConnection&quot;) 
+    def vehicleDoc = vars.getObject(&quot;updatedVehicleDoc&quot;)
+
+    def maxRadius = (props.get(&quot;VT11_MAX_RADIUS&quot;) as Integer)
+    def minRadius = (props.get(&quot;VT11_MIN_RADIUS&quot;) as Integer)
+    def randomRadius = minRadius + (int)(Math.random() * (maxRadius - minRadius + 1))
+
+    def maxRangeMinutes = (props.get(&quot;VT11_MAX_TIME_RANGE&quot;) as Integer)
+    def maxOffsetMinutes = (props.get(&quot;VT11_MAX_TIME_OFFSET&quot;) as Integer)
+    def now = Date.from(new Date().toInstant().plus((props.get(&quot;DAY_OFFSET&quot;) as Integer), ChronoUnit.DAYS))
+    def randomRange = (int)(Math.random() * (maxRangeMinutes + 1))
+    def randomOffset = maxOffsetMinutes
+    def endDate = new Date(now.getTime() - (randomRange as long) * 60 * 1000)
+    def startDate = new Date(endDate.getTime() - (randomOffset as long) * 60 * 1000)
+    
+    def targetUserId = vehicleDoc.metaData.userId
+    def limitDocs = (props.get(&quot;VT11_LIMIT&quot;) as Integer)
+
+    // 3. Build the Optimized Aggregation Pipeline
+    
+    // *** FIX: Use the MongoDB driver&apos;s &apos;Filters&apos; helper to build the query. ***
+    // This is the correct, type-safe way to create filters and avoids Groovy syntax errors.
+    def timeFilterQuery = Filters.and(
+        Filters.gte(&quot;pointTimeStamp&quot;, startDate),
+        Filters.lte(&quot;pointTimeStamp&quot;, endDate)
+    )
+
+    def geoNearStage = new Document(&apos;$geoNear&apos;, new Document()
+        .append(&quot;near&quot;, new Document(&quot;type&quot;, &quot;Point&quot;)
+            .append(&quot;coordinates&quot;, Arrays.asList(vehicleDoc.location.coordinates[0], vehicleDoc.location.coordinates[1])))
+        .append(&quot;distanceField&quot;, &quot;distance_from_point&quot;)
+        .append(&quot;maxDistance&quot;, (randomRadius as Double))
+        .append(&quot;spherical&quot;, true)
+        .append(&quot;key&quot;, &quot;location&quot;) 
+        .append(&quot;query&quot;, timeFilterQuery) 
+    )
+    
+    def sortStage = Aggregates.sort(
+        Sorts.orderBy(
+            Sorts.descending(&quot;pointTimeStamp&quot;)
+        )
+    )
+
+    def limitStage = Aggregates.limit(limitDocs)
+
+    def pipeline = Arrays.asList(
+        geoNearStage,
+        sortStage,
+        limitStage
+    )
+    
+    // 4. Execute Query and Report Results
+    def count = 0
+    def responseBytes = 0
+
+    long startTime = System.currentTimeMillis()
+    MongoCursor&lt;RawBsonDocument&gt; results = collection.withDocumentClass(RawBsonDocument.class).aggregate(pipeline).iterator()
+    while(results.hasNext()) {
+         RawBsonDocument rawDoc = results.next()
+            count++
+            responseBytes += rawDoc.size()
+    }
+    long endTime = System.currentTimeMillis()
+
+    SampleResult.setStartTime(startTime)
+    SampleResult.setEndTime(endTime)
+
+    long latencyMillis = endTime - startTime
+
+    log.info(&quot;Count: ${count}, Latency: ${latencyMillis} ms, Response: ${responseBytes} bytes, Query: ${pipeline.toString()}&quot;)
+    SampleResult.setSuccessful(true)
+    SampleResult.setLatency(latencyMillis)
+    SampleResult.setBytes(responseBytes)
+
+} catch (Exception e) {
+    log.error(&quot;Error executing MongoDB query: ${e.getMessage()}&quot;, e)
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseMessage(&quot;Error: ${e.getMessage()}&quot;)
+}</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Constant Timer" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__P(VT10_DELAY)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+      </hashTree>
+      <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="TDT" enabled="true">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </PostThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="end_processing" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import com.mongodb.client.MongoClient
+
+def client = props.get(&quot;mongoClient&quot;) as MongoClient
+if (client != null) {
+    client.close()
+    log.info(&quot;MongoDB client closed.&quot;)
+} else {
+    log.warn(&quot;MongoDB client not found in props.&quot;)
+}</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+      <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time>
+            <latency>true</latency>
+            <timestamp>true</timestamp>
+            <success>true</success>
+            <label>true</label>
+            <code>true</code>
+            <message>true</message>
+            <threadName>true</threadName>
+            <dataType>true</dataType>
+            <encoding>false</encoding>
+            <assertions>true</assertions>
+            <subresults>true</subresults>
+            <responseData>false</responseData>
+            <samplerData>false</samplerData>
+            <xml>false</xml>
+            <fieldNames>true</fieldNames>
+            <responseHeaders>false</responseHeaders>
+            <requestHeaders>false</requestHeaders>
+            <responseDataOnError>false</responseDataOnError>
+            <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+            <assertionsResultsToSave>0</assertionsResultsToSave>
+            <bytes>true</bytes>
+            <sentBytes>true</sentBytes>
+            <url>true</url>
+            <threadCounts>true</threadCounts>
+            <idleTime>true</idleTime>
+            <connectTime>true</connectTime>
+          </value>
+        </objProp>
+        <stringProp name="filename"></stringProp>
+      </ResultCollector>
+      <hashTree/>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

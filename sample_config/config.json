@@ -1,0 +1,107 @@
+{
+  "mongoDb": {
+    "baseUrl": "YOUR CONNECTION STRING",
+    "database": "livetracking",
+    "collection": "point_added_30_ts",
+    "connectionPoolMaxSize": 2090,
+    "connectionPoolMinSize": 2090,
+    "connectionPoolMaxWaitTimeInSec": 20,
+    "connectionPoolMaxIdleTimeInMin": 5
+  },
+  "seedFile": "generated_bus_data_v1.json",
+  "globalDayOffset": 9,
+  "pointAddedInsertion": {
+    "numThreads": 2000,
+    "rampUpTimeInSec": 10,
+    "durationInSec": 600,
+    "threadDelayInMsec": 1000
+  },
+  "filterByTimeRangeAndVehicleId": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "durationMaxRangeInMinutes": 43200,
+    "offsetMaxRangeInMinutes": 60,
+    "limitOfDocs": 1000
+  },
+  "filterByTimeRangeAndRouteId": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "durationMaxRangeInMinutes": 43200,
+    "offsetMaxRangeInMinutes": 60,
+    "limitOfDocs": 1000
+  },
+  "filterByTimeRangeRouteVehicleAndCity": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "durationMaxRangeInMinutes": 43200,
+    "offsetMaxRangeInMinutes": 60,
+    "limitOfDocs": 1000
+  },
+  "filterByTimeRangeAgencyAndCity": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "durationMaxRangeInMinutes": 43200,
+    "offsetMaxRangeInMinutes": 60,
+    "limitOfDocs": 1000
+  },
+  "geoRadiusWithTimeRangeLatestPoint": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "radiusMaxRangeInMeters": 3000,
+    "radiusMinRangeInMeters": 1000,
+    "durationMaxRangeInMinutes": 0,
+    "offsetMaxRangeInMinutes": 3,
+    "limitOfDocs": 1000
+  },
+  "geoRadiusWithTimeRange": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "radiusMaxRangeInMeters": 3000,
+    "radiusMinRangeInMeters": 1000,
+    "durationMaxRangeInMinutes": 43200,
+    "offsetMaxRangeInMinutes": 30,
+    "limitOfDocs": 1000
+  },
+  "timeRangeCityAndPercentile": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "maxPercentile": 50,
+    "minPercentile": 20,
+    "durationMaxRangeInMinutes": 43200,
+    "offsetMaxRangeInMinutes": 30
+  },
+  "timeRangeCityCountAndMean": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "durationMaxRangeInMinutes": 43200,
+    "offsetMaxRangeInMinutes": 30
+  },
+  "timeRangeHourCityAndPercentile": {
+    "numThreads": 0,
+    "rampUpTimeInSec": 0,
+    "durationInSec": 600,
+    "threadDelayInMsec": 0,
+    "maxPercentile": 40,
+    "minPercentile": 20,
+    "fixedOffsetInMinutes": 50000,
+    "fixedRangeInMinutes": 30,
+    "dayStartHourUtc": 3,
+    "dayEndHourUtc": 14
+  }
+}
